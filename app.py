@@ -352,15 +352,15 @@ class HansaBot:
     # ── Arena ──
 
     def check_arena(self):
-        """Check and join arena tournaments. Uses /join endpoint (not /participants)."""
+        """Check and join arena tournaments. Uses /participants endpoint (NOT /join)."""
         # Check upcoming tournament
         upcoming = self._api("GET", "/arena/tournaments/upcoming")
         if isinstance(upcoming, dict) and upcoming.get("id"):
             tid = upcoming["id"]
             already_joined = self.state.get("arena_joined", [])
             if tid not in already_joined:
-                # Use /join endpoint (NOT /participants)
-                join = self._api("POST", f"/arena/tournaments/{tid}/join", {})
+                # Use /participants endpoint (NOT /join — /join returns 405)
+                join = self._api("POST", f"/arena/tournaments/{tid}/participants", {})
                 if join.get("tournament_id") or join.get("charged") is not None:
                     already_joined.append(tid)
                     self.state["arena_joined"] = already_joined[-20:]
@@ -879,7 +879,7 @@ def run_continuous():
 if __name__ == "__main__":
     log.info("🤖 BursaryHunter EarnBot v2 starting...")
     log.info("🎯 Platforms: Agent Hansa, BountyBook, Toku")
-    log.info("✨ New: Arena auto-play, daily quests, side quests, /join endpoint")
+    log.info("✨ New: Arena /participants endpoint, daily quests, side quests, auto-play moves")
 
     if os.environ.get("SINGLE_CYCLE"):
         run_single_cycle()
