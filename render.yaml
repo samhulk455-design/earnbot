@@ -1,0 +1,14 @@
+services:
+  - type: worker
+    name: bursaryhunter-earnbot
+    env: docker
+    plan: free
+    envVars:
+      - key: HANSA_API_KEY
+        sync: false
+      - key: BB_WALLET
+        sync: false
+      - key: BB_PRIVKEY
+        sync: false
+      - key: TOKU_KEY
+        sync: false

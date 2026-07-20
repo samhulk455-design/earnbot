@@ -1,0 +1,10 @@
+{
+  "name": "bursaryhunter-earnbot",
+  "version": "1.0.0",
+  "description": "Autonomous AI agent earning bot",
+  "main": "app.py",
+  "scripts": {
+    "start": "python app.py"
+  },
+  "requirements": []
+}
