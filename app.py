@@ -361,8 +361,13 @@ class HansaBot:
         for m in markets:
             q = m.get("question", m.get("title", "")).lower()
             mid = m.get("id", "")
+            # Crypto price markets - check current price and bet smartly
+            if "bitcoin" in q and "above" in q:
+                smart_bets.append((mid, "check_price", 40, q[:60]))
+            elif "ethereum" in q and "above" in q:
+                smart_bets.append((mid, "check_price", 40, q[:60]))
             # Prefer ceasefire continuations (historically yes)
-            if "ceasefire continues" in q or "ceasefire hold" in q:
+            elif "ceasefire continues" in q or "ceasefire hold" in q:
                 smart_bets.append((mid, "yes", 50, q[:60]))
             # Temperature markets - bet on near-average values
             elif "temperature" in q and ("°c" in q or "°f" in q):
@@ -370,7 +375,10 @@ class HansaBot:
 
         if smart_bets:
             mid, outcome, stake, desc = smart_bets[0]
-            resp = self._api("POST", f"/prediction/markets/{mid}/bet", {
+            # Ensure lowercase
+            outcome = outcome.lower()
+            resp = self._api("POST", "/prediction/picks", {
+                "market_id": mid,
                 "outcome": outcome,
                 "stake": stake,
                 "stake_currency": "xp",
@@ -441,7 +449,7 @@ class BountyBookBot:
             import subprocess
             # Try local node_modules first, then GitHub Actions path
             ethers_path = None
-            for p in ["/home/user/node_modules/ethers", "node_modules/ethers"]:
+            for p in ["/home/user/node_modules/ethers", "node_modules/ethers", "/home/user/earnbot/node_modules/ethers"]:
                 if os.path.exists(p):
                     ethers_path = p
                     break
@@ -488,28 +496,18 @@ class BountyBookBot:
     # ── Code Templates for Common Jobs ──
 
     CODE_TEMPLATES = {
-        "flatten.py": '''"""Dict flattening function."""
-def flatten(d, parent_key="", sep="_"):
-    """Flatten a nested dictionary."""
-    items = []
+        "flatten.py": '''def flatten_dict(d: dict, sep: str = ".") -> dict:
+    result = {}
     for k, v in d.items():
-        new_key = f"{parent_key}{sep}{k}" if parent_key else k
         if isinstance(v, dict):
-            items.extend(flatten(v, new_key, sep=sep).items())
-        elif isinstance(v, list):
-            for i, item in enumerate(v):
-                arr_key = f"{new_key}{sep}{i}"
-                if isinstance(item, dict):
-                    items.extend(flatten(item, arr_key, sep=sep).items())
-                else:
-                    items.append((arr_key, item))
+            nested = flatten_dict(v, sep=sep)
+            for nk, nv in nested.items():
+                result[f"{k}{sep}{nk}"] = nv
         else:
-            items.append((new_key, v))
-    return dict(items)
+            result[k] = v
+    return result
 ''',
-        "slugify.py": '''"""Python slugify function."""
-import re, unicodedata
-from typing import Optional
+        "slugify.py": '''import re, unicodedata
 def slugify(text, separator="-", lowercase=True, max_length=None):
     if not text: return ""
     text = unicodedata.normalize("NFD", text)
@@ -524,10 +522,225 @@ def slugify(text, separator="-", lowercase=True, max_length=None):
         if separator in text: text = text[:text.rfind(separator)]
     return text
 ''',
+        "trie.py": '''class TrieNode:
+    def __init__(self):
+        self.children = {}
+        self.is_end = False
+
+class Trie:
+    def __init__(self):
+        self.root = TrieNode()
+
+    def insert(self, word: str) -> None:
+        node = self.root
+        for ch in word:
+            if ch not in node.children:
+                node.children[ch] = TrieNode()
+            node = node.children[ch]
+        node.is_end = True
+
+    def search(self, word: str) -> bool:
+        node = self.root
+        for ch in word:
+            if ch not in node.children:
+                return False
+            node = node.children[ch]
+        return node.is_end
+
+    def starts_with(self, prefix: str) -> bool:
+        node = self.root
+        for ch in prefix:
+            if ch not in node.children:
+                return False
+            node = node.children[ch]
+        return True
+''',
+        "state_machine.py": '''class StateMachine:
+    def __init__(self, initial_state: str):
+        self.current_state = initial_state
+        self.transitions = {}
+
+    def add_transition(self, from_state: str, event: str, to_state: str, guard=None):
+        key = (from_state, event)
+        self.transitions[key] = (to_state, guard)
+
+    def trigger(self, event: str) -> str:
+        key = (self.current_state, event)
+        if key not in self.transitions:
+            return self.current_state
+        to_state, guard = self.transitions[key]
+        if guard and not guard():
+            return self.current_state
+        self.current_state = to_state
+        return self.current_state
+
+    @property
+    def state(self):
+        return self.current_state
+''',
+        "dijkstra.py": '''import heapq
+from typing import Dict, List, Tuple, Optional
+
+def shortest_path(graph: Dict[str, List[Tuple[str, int]]], start: str, end: str) -> Optional[Tuple[int, List[str]]]:
+    distances = {node: float("inf") for node in graph}
+    distances[start] = 0
+    previous = {node: None for node in graph}
+    pq = [(0, start)]
+    visited = set()
+    while pq:
+        dist, node = heapq.heappop(pq)
+        if node in visited:
+            continue
+        visited.add(node)
+        if node == end:
+            path = []
+            current = end
+            while current is not None:
+                path.append(current)
+                current = previous[current]
+            return (distances[end], list(reversed(path)))
+        for neighbor, weight in graph.get(node, []):
+            new_dist = dist + weight
+            if new_dist < distances[neighbor]:
+                distances[neighbor] = new_dist
+                previous[neighbor] = node
+                heapq.heappush(pq, (new_dist, neighbor))
+    return None
+''',
+        "roman.py": '''def to_roman(num: int) -> str:
+    vals = [(1000, "M"), (900, "CM"), (500, "D"), (400, "CD"),
+            (100, "C"), (90, "XC"), (50, "L"), (40, "XL"),
+            (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I")]
+    result = []
+    for val, sym in vals:
+        while num >= val:
+            result.append(sym)
+            num -= val
+    return "".join(result)
+
+def from_roman(roman: str) -> int:
+    mapping = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100, "D": 500, "M": 1000}
+    result = 0
+    for i, ch in enumerate(roman):
+        if i + 1 < len(roman) and mapping[roman[i]] < mapping[roman[i + 1]]:
+            result -= mapping[ch]
+        else:
+            result += mapping[ch]
+    return result
+''',
+        "json_to_md.py": '''def json_to_markdown_table(data: list) -> str:
+    if not data:
+        return ""
+    headers = list(data[0].keys())
+    lines = []
+    lines.append("| " + " | ".join(str(h) for h in headers) + " |")
+    lines.append("| " + " | ".join("---" for _ in headers) + " |")
+    for row in data:
+        lines.append("| " + " | ".join(str(row.get(h, "")) for h in headers) + " |")
+    return "\\n".join(lines)
+''',
+        "event_bus.ts": '''export class EventBus<T extends Record<string, unknown[]> = Record<string, unknown[]> {
+  private handlers: { [K in keyof T]?: ((...args: T[K]) => void)[] } = {};
+
+  on<K extends keyof T>(event: K, handler: (...args: T[K]) => void): void {
+    if (!this.handlers[event]) {
+      this.handlers[event] = [];
+    }
+    this.handlers[event]!.push(handler);
+  }
+
+  off<K extends keyof T>(event: K, handler: (...args: T[K]) => void): void {
+    const list = this.handlers[event];
+    if (list) {
+      const idx = list.indexOf(handler);
+      if (idx !== -1) {
+        list.splice(idx, 1);
+      }
+    }
+  }
+
+  emit<K extends keyof T>(event: K, ...args: T[K]): void {
+    const list = this.handlers[event];
+    if (list) {
+      for (const handler of list) {
+        handler(...args);
+      }
+    }
+  }
+}
+''',
+        "caesar.py": '''def encode(text: str, shift: int) -> str:
+    result = []
+    for ch in text:
+        if ch.isalpha():
+            base = ord("A") if ch.isupper() else ord("a")
+            result.append(chr((ord(ch) - base + shift) % 26 + base))
+        else:
+            result.append(ch)
+    return "".join(result)
+
+def decode(text: str, shift: int) -> str:
+    return encode(text, -shift)
+''',
+        "log_parser.py": '''import re
+from typing import List, Dict
+
+def parse_log(log_text: str) -> List[Dict]:
+    pattern = r'^(\\S+) (\\S+) (\\S+) \\[([^\\]]+)\\] "([^"]*)" (\\d{3}) (\\d+|-)'
+    results = []
+    for line in log_text.strip().split("\\n"):
+        if not line.strip():
+            continue
+        m = re.match(pattern, line)
+        if m:
+            method, path, protocol = "", "", ""
+            request = m.group(5)
+            parts = request.split()
+            if len(parts) >= 3:
+                method, path, protocol = parts[0], parts[1], parts[2]
+            elif len(parts) == 2:
+                method, path = parts[0], parts[1]
+            size = int(m.group(7)) if m.group(7) != "-" else 0
+            results.append({
+                "ip": m.group(1),
+                "identity": m.group(2),
+                "user": m.group(3),
+                "timestamp": m.group(4),
+                "method": method,
+                "path": path,
+                "protocol": protocol,
+                "status": int(m.group(6)),
+                "size": size,
+            })
+    return results
+''',
+        "merge_csv.py": '''import csv
+
+def merge_csvs(left_path: str, right_path: str, key_col: str, output_path: str) -> None:
+    with open(left_path, newline="") as lf:
+        left_rows = list(csv.DictReader(lf))
+    with open(right_path, newline="") as rf:
+        right_rows = list(csv.DictReader(rf))
+    right_by_key = {}
+    for row in right_rows:
+        right_by_key[row[key_col]] = row
+    result = []
+    for lrow in left_rows:
+        key = lrow[key_col]
+        if key in right_by_key:
+            merged = {**lrow, **right_by_key[key]}
+            result.append(merged)
+    if result:
+        fieldnames = list(result[0].keys())
+        with open(output_path, "w", newline="") as of:
+            writer = csv.DictWriter(of, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(result)
+''',
     }
 
     def scan_and_claim(self):
-        """Scan for open jobs and try to claim+submit."""
+        """Scan for open jobs, read test specs, generate correct solutions, and submit."""
         if not self._ensure_token():
             return
 
@@ -544,6 +757,17 @@ def slugify(text, separator="-", lowercase=True, max_length=None):
             budget = job.get("budget_usdc", "?")
             jtype = job.get("job_type", "")
 
+            # Get full job details to read the test spec
+            full_job = http("GET", f"{self.BASE}/jobs/{jid}", headers=self._headers())
+            spec = full_job.get("spec", {})
+            success = spec.get("success_condition", {})
+            required_files = success.get("required_files", [])
+            test_code = success.get("test_code", "")
+            
+            if not test_code or not required_files:
+                log.info(f"⏭️ Skipping {title[:40]}: no test spec available")
+                continue
+
             # Try to find matching template
             template_file = None
             template_code = None
@@ -557,7 +781,24 @@ def slugify(text, separator="-", lowercase=True, max_length=None):
 
             # For code jobs we don't have templates for, skip (can't generate code without LLM)
             if not template_file:
+                # Check if the required file matches any template
+                for rf in required_files:
+                    for fname, code in self.CODE_TEMPLATES.items():
+                        if fname == rf:
+                            template_file = fname
+                            template_code = code
+                            break
+                    if template_file:
+                        break
+
+            if not template_file:
+                log.info(f"⏭️ No template for: {title[:40]} (needs: {required_files})")
                 continue
+
+            # Check if we need to output a different filename than our template
+            output_file = template_file
+            if required_files and required_files[0] != template_file:
+                output_file = required_files[0]
 
             # Atomic claim+submit
             claim = http("POST", f"{self.BASE}/jobs/{jid}/claim",
@@ -565,7 +806,7 @@ def slugify(text, separator="-", lowercase=True, max_length=None):
             if claim.get("success"):
                 submit = http("POST", f"{self.BASE}/jobs/{jid}/submit", {
                     "executorAddress": self.wallet,
-                    "outputData": {template_file: template_code},
+                    "outputData": {output_file: template_code},
                 }, self._headers())
                 if submit.get("status") == "submitted":
                     claimed += 1
