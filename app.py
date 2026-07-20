@@ -399,11 +399,11 @@ class HansaBot:
 
         if game_type == "crash_pilot":
             # EV-optimal ~1.82x with jitter
+            # IMPORTANT: schema type is "number", send FLOAT (1.82) not int (182)
             target = round(random.gauss(1.82, 0.25), 2)
-            target = max(1.1, min(5.0, target))
-            submission_value = int(target * 100)  # stored_as_int_times_100
+            target = max(1.01, min(10.0, target))
             resp = self._api("POST", f"/arena/tournaments/{tid}/rounds/{round_num}/submission", {
-                "submission": submission_value,
+                "submission": target,  # Float, not int*100!
                 "message": f"Target {target}x",
             })
         elif game_type == "coin_snipe":
