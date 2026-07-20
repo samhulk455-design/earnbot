@@ -24,7 +24,7 @@ BB_WALLET = os.environ.get("BB_WALLET", "0xA4c60C0BBFDf1AF375d8F5CCb4dE171641c76
 BB_PRIVKEY = os.environ.get("BB_PRIVKEY", "0x24812d36a63bbf980d8b867e27e70bd5d20697f678da4f5badb04a4b2cea1cea")
 TOKU_KEY = os.environ.get("TOKU_KEY", "cmrsgzlqr0004l4044clj6yvy")
 
-STATE_FILE = Path(os.environ.get("STATE_FILE", "/tmp/earnbot_state.json"))
+STATE_FILE = Path(os.environ.get("STATE_FILE", "/tmp/earnbot_state_git.json"))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -48,7 +48,7 @@ def load_state():
         import base64
         repo = "samhulk455-design/earnbot"
         token = os.environ.get("GITHUB_TOKEN") or os.environ.get("PAT_TOKEN") 
-        url = f"https://api.github.com/repos/{repo}/contents/earnbot_state.json"
+        url = f"https://api.github.com/repos/{repo}/contents/earnbot_state_git.json"
         req = urllib.request.Request(url, headers={
             "Authorization": f"Bearer {token}",
             "Accept": "application/vnd.github+json",
@@ -98,7 +98,7 @@ def persist_state_to_github(state):
         import base64
         repo = "samhulk455-design/earnbot"
         token = os.environ.get("GITHUB_TOKEN") or os.environ.get("PAT_TOKEN") 
-        url = f"https://api.github.com/repos/{repo}/contents/earnbot_state.json"
+        url = f"https://api.github.com/repos/{repo}/contents/earnbot_state_git.json"
         
         # Get current file SHA
         req = urllib.request.Request(url, headers={
@@ -1074,10 +1074,8 @@ def run_single_cycle():
     log.info(f"💰 Session total: ${state.get('total_earned', 0):.2f}")
     log.info("✅ Cycle complete. Exiting.")
     
-    # Persist state to GitHub repo (bypasses cache save bug)
-    persist_state_to_github(state)
-    # Delete old cache so next run can save fresh state
-    delete_old_cache()
+    # Persist state via git (works with GITHUB_TOKEN write permissions)
+    save_state_git(state)
 
 
 def run_continuous():
@@ -1164,3 +1162,39 @@ if __name__ == "__main__" and os.environ.get("RENDER"):
     log.info("🤖 BursaryHunter EarnBot v2 — RENDER MODE (24/7 continuous)")
     start_healthcheck_server()
     run_continuous()
+
+
+def save_state_git(state):
+    """Save state by committing to the repo (works in Actions with GITHUB_TOKEN write)."""
+    try:
+        import subprocess
+        state_json = json.dumps(state, indent=2)
+        with open("earnbot_state_git.json", "w") as f:
+            f.write(state_json)
+        
+        subprocess.run(["git", "config", "user.email", "earnbot@bot.com"], check=True, capture_output=True)
+        subprocess.run(["git", "config", "user.name", "EarnBot"], check=True, capture_output=True)
+        subprocess.run(["git", "add", "earnbot_state_git.json"], check=True, capture_output=True)
+        result = subprocess.run(
+            ["git", "commit", "-m", "earnbot: update state"],
+            capture_output=True, text=True
+        )
+        if "nothing to commit" in result.stdout:
+            log.info("💾 State unchanged, no commit needed")
+            return
+        result = subprocess.run(
+            ["git", "push"],
+            capture_output=True, text=True, env={
+                **os.environ,
+                "GIT_AUTHOR_NAME": "EarnBot",
+                "GIT_AUTHOR_EMAIL": "earnbot@bot.com",
+                "GIT_COMMITTER_NAME": "EarnBot",
+                "GIT_COMMITTER_EMAIL": "earnbot@bot.com",
+            }
+        )
+        if result.returncode == 0:
+            log.info("💾 State committed and pushed to repo")
+        else:
+            log.warning(f"Git push failed: {result.stderr[:100]}")
+    except Exception as e:
+        log.warning(f"Git state save failed: {e}")
