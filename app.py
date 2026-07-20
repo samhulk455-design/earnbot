@@ -126,7 +126,15 @@ class HansaBot:
     def _solve_puzzle(self, question: str) -> int | None:
         """Solve the math puzzle from check-in.
         
-        Pattern: "A [thing] begins/starts with X. [Distractor.] Then it finds/gains Y [more]. [Distractor.] Finally it loses Z. How many remain?"
+        Handles:
+        - "begins with/starts with X" → set result = X
+        - "finds/gains X more" → add X
+        - "loses/drops X" → subtract X
+        - "twice as many" → multiply by 2
+        - "three times as many" → multiply by 3
+        - "half as many" → multiply by 0.5
+        - "double" → multiply by 2
+        - Compound nouns: "A knight has twice as many" (uses the last reference number)
         """
         try:
             q = question.lower().strip()
@@ -149,7 +157,9 @@ class HansaBot:
             # Split into sentences
             sentences = re.split(r'[.!?]\s*', normalized)
             
-            result = 0
+            result = None  # None means not yet set
+            last_reference_num = None  # Track the last number mentioned for "twice as many"
+            
             for sentence in sentences:
                 sentence = sentence.strip()
                 if not sentence or 'how many' in sentence or 'remain' in sentence:
@@ -159,12 +169,34 @@ class HansaBot:
                 if not nums:
                     continue
                 
-                # Use only the FIRST number in each sentence as the relevant quantity
-                # (distractor sentences have numbers but don't affect the count)
                 n = nums[0]
+                last_reference_num = n
                 
-                if "begins with" in sentence or "starts with" in sentence or "start with" in sentence:
+                if "begins with" in sentence or "starts with" in sentence or "start with" in sentence or "has " in sentence and result is None:
+                    # "A wizard has 9 books" → starting value = 9
                     result = n
+                elif any(w in sentence for w in [
+                    "twice as many", "double the", "2x as many", "two times as many"
+                ]):
+                    # "A knight has twice as many" → multiply last reference
+                    if result is not None:
+                        result = result * 2
+                    elif last_reference_num is not None:
+                        result = last_reference_num * 2
+                elif any(w in sentence for w in [
+                    "three times as many", "triple the", "3x as many", "thrice"
+                ]):
+                    if result is not None:
+                        result = result * 3
+                    elif last_reference_num is not None:
+                        result = last_reference_num * 3
+                elif any(w in sentence for w in [
+                    "half as many", "half the"
+                ]):
+                    if result is not None:
+                        result = result // 2
+                    elif last_reference_num is not None:
+                        result = last_reference_num // 2
                 elif any(w in sentence for w in [
                     "loses", "drops", "gives", "spends", "removes", "minus",
                     "fewer", "less", "throws", "eats", "breaks", "dies",
@@ -172,7 +204,10 @@ class HansaBot:
                     "escapes", "destroy", "destroys", "break", "vanish", "vanishes",
                     "die", "kill", "kills", "steal", "steals", "sold", "sell"
                 ]):
-                    result -= n
+                    if result is None:
+                        result = n
+                    else:
+                        result -= n
                 elif any(w in sentence for w in [
                     "finds", "gains", "gets", "more", "adds", "receives",
                     "collects", "wins", "earns", "picks up", "takes", "buys",
@@ -183,8 +218,17 @@ class HansaBot:
                     "create", "creates", "make", "makes", "build", "builds",
                     "find", "found", "bought", "purchase", "purchases"
                 ]):
-                    result += n
-                # Ignore sentences that are just distractors (no operation keywords)
+                    if result is None:
+                        result = n
+                    else:
+                        result += n
+                # If sentence has "has" and result is already set, it's a new subject
+                # e.g. "A wizard has 9 books. A knight has twice as many."
+                # The "twice as many" is caught above, but plain "has" with result set = new subject
+                # Skip — handled by "twice as many" etc.
+            
+            if result is None:
+                result = 0
             
             log.info(f"🧩 Puzzle: '{question[:80]}...' → Answer: {result}")
             return result
