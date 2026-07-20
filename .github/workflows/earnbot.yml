@@ -18,7 +18,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: earnbot_state.json
-          key: earnbot-state-${{ github.run_id }}
+          key: earnbot-state-latest
           restore-keys: |
             earnbot-state-
 
