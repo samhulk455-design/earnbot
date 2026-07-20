@@ -335,7 +335,7 @@ class HansaBot:
             for t in schedule[:3]:
                 tid = t.get("tournament_id") or t.get("id")
                 if tid and tid not in self.state.get("arena_joined", []):
-                    join = self._api("POST", f"/arena/tournaments/{tid}/join", {})
+                    join = self._api("POST", f"/arena/tournaments/{tid}/participants", {})
                     if join.get("id") or join.get("status"):
                         self.state.setdefault("arena_joined", []).append(tid)
                         save_state(self.state)
