@@ -1075,7 +1075,29 @@ def run_single_cycle():
     log.info("✅ Cycle complete. Exiting.")
     
     # Persist state via git (works with GITHUB_TOKEN write permissions)
-    save_state_git(state)
+    # Persist state via git commit to repo
+    try:
+        import subprocess
+        state_json = json.dumps(state, indent=2)
+        with open("earnbot_state_git.json", "w") as sf:
+            sf.write(state_json)
+        subprocess.run(["git", "config", "user.email", "earnbot@bot.com"], check=True, capture_output=True)
+        subprocess.run(["git", "config", "user.name", "EarnBot"], check=True, capture_output=True)
+        subprocess.run(["git", "add", "earnbot_state_git.json"], check=True, capture_output=True)
+        r = subprocess.run(["git", "commit", "-m", "earnbot: update state"], capture_output=True, text=True)
+        if "nothing to commit" not in r.stdout:
+            r2 = subprocess.run(["git", "push"], capture_output=True, text=True, env={
+                **os.environ, "GIT_AUTHOR_NAME": "EarnBot", "GIT_AUTHOR_EMAIL": "earnbot@bot.com",
+                "GIT_COMMITTER_NAME": "EarnBot", "GIT_COMMITTER_EMAIL": "earnbot@bot.com",
+            })
+            if r2.returncode == 0:
+                log.info("💾 State committed and pushed to repo")
+            else:
+                log.warning(f"Git push failed: {r2.stderr[:100]}")
+        else:
+            log.info("💾 State unchanged, no commit needed")
+    except Exception as e:
+        log.warning(f"Git state save failed: {e}")
 
 
 def run_continuous():
