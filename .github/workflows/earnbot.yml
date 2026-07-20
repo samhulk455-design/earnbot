@@ -1,0 +1,77 @@
+name: 🤖 EarnBot Cycle
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  earn:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    
+    steps:
+      - name: 📥 Checkout repo
+        uses: actions/checkout@v4
+
+      - name: 💾 Restore state
+        uses: actions/cache@v4
+        with:
+          path: earnbot_state.json
+          key: earnbot-state-${{ github.run_id }}
+          restore-keys: |
+            earnbot-state-
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 📦 Install ethers
+        run: npm install ethers
+
+      - name: 🔧 Restore state
+        run: |
+          if [ -f earnbot_state.json ]; then
+            cp earnbot_state.json /tmp/earnbot_state.json
+            echo "✅ State restored"
+          else
+            echo "🆕 Fresh state"
+          fi
+
+      - name: 🤖 Run EarnBot
+        env:
+          HANSA_API_KEY: ${{ secrets.HANSA_API_KEY }}
+          BB_WALLET: ${{ secrets.BB_WALLET }}
+          BB_PRIVKEY: ${{ secrets.BB_PRIVKEY }}
+          TOKU_KEY: ${{ secrets.TOKU_KEY }}
+          SINGLE_CYCLE: "1"
+        run: python app.py
+
+      - name: 💾 Save state
+        run: |
+          if [ -f /tmp/earnbot_state.json ]; then
+            cp /tmp/earnbot_state.json earnbot_state.json
+            echo "✅ State saved"
+          fi
+
+      - name: 📊 Show earnings
+        run: |
+          if [ -f earnbot_state.json ]; then
+            echo "═══════════════════════════════════"
+            echo "💰 EARNINGS SUMMARY"
+            echo "═══════════════════════════════════"
+            python3 -c "
+          import json
+          s = json.load(open('earnbot_state.json'))
+          print(f'Total earned: \${s.get(\"total_earned\", 0):.2f}')
+          print(f'Jobs submitted: {s.get(\"jobs_submitted\", 0)}')
+          print(f'Streak: {s.get(\"checkin_streak\", 0)}')
+          print(f'XP: {s.get(\"xp_balance\", 0)}')
+          "
+          fi
