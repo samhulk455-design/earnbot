@@ -174,6 +174,14 @@ class HansaBot:
                 log.info(f"  🧮 Sum: {result}")
                 return result
 
+            # Handle modulo/remainder: "split N ... into groups of M" → N % M
+            mod_match = re.search(r'(?:split|divide|dividing)\s+(\d+).*?(?:groups?\s+of\s+|by\s+)(\d+)', normalized)
+            if mod_match and any(w in normalized for w in ["left over", "leftover", "remainder", "remaining", "left"]):
+                n, m = int(mod_match.group(1)), int(mod_match.group(2))
+                result = n % m
+                log.info(f"  🧮 Modulo: {n} % {m} = {result}")
+                return result
+
             # Split into clauses
             clauses = re.split(r'\s+and\s+then\s+|\.\s+|\s+and\s+', normalized)
 
