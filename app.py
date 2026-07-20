@@ -184,6 +184,22 @@ class HansaBot:
                 log.info(f"  🧮 Modulo: {n} % {m} = {result}")
                 return result
 
+            # Handle "from X to Y inclusive" → Y - X + 1
+            range_match = re.search(r'from\s+(\d+)\s+to\s+(\d+)\s+inclusive', normalized)
+            if range_match:
+                x, y = int(range_match.group(1)), int(range_match.group(2))
+                result = y - x + 1
+                log.info(f"  🧮 Range inclusive: {x} to {y} = {result}")
+                return result
+
+            # Handle "numbers ... from X to Y" → Y - X + 1
+            range_match2 = re.search(r'from\s+(\d+)\s+(?:to|through)\s+(\d+)', normalized)
+            if range_match2 and any(w in normalized for w in ['number', 'count', 'how many', 'total']):
+                x, y = int(range_match2.group(1)), int(range_match2.group(2))
+                result = y - x + 1
+                log.info(f"  🧮 Range count: {x} to {y} = {result}")
+                return result
+
             # Split into clauses
             clauses = re.split(r'\s+and\s+then\s+|\.\s+|\s+and\s+', normalized)
 
