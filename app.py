@@ -124,17 +124,7 @@ class HansaBot:
         return resp
 
     def _solve_puzzle(self, question: str) -> int | None:
-        """Solve the math puzzle from check-in.
-        
-        Handles:
-        - "begins with/starts with X" → set result = X
-        - "has N [things]" → set result = N (first subject)
-        - "finds/gains X more" → add X
-        - "loses/drops X" → subtract X
-        - "twice as many" → multiply previous by 2
-        - "three times as many" → multiply previous by 3
-        - "half as many" → multiply previous by 0.5
-        """
+        """Solve the math puzzle from check-in."""
         try:
             q = question.lower().strip()
             
@@ -153,59 +143,78 @@ class HansaBot:
             for word, num in sorted(word_to_num.items(), key=lambda x: -len(x[0])):
                 normalized = re.sub(r'\b' + word + r'\b', str(num), normalized)
             
-            # Split into sentences
-            sentences = re.split(r'[.!?]\s*', normalized)
+            # Split compound sentences on "and then", "and" when they connect operations
+            # e.g. "doubles its 4 fish and then finds 3 more" → two clauses
+            # But "twice as many" should stay together
+            # Split on " and then " and ". "
+            clauses = re.split(r'(?:\s+and\s+then\s+|\.\s+)', normalized)
             
             result = None
             
-            for sentence in sentences:
-                sentence = sentence.strip()
-                if not sentence or 'how many' in sentence or 'remain' in sentence:
+            for clause in clauses:
+                clause = clause.strip()
+                if not clause or any(w in clause for w in ['how many', 'how much', 'what is', 'remain', 'total?']):
+                    # For "total?" at end, skip
+                    if 'total' in clause and re.search(r'\d', clause) is None:
+                        continue
+                    if 'how many' in clause or 'how much' in clause or 'what is' in clause or 'remain' in clause:
+                        continue
+                
+                nums = [int(x) for x in re.findall(r'\b\d+\b', clause)]
+                
+                # Check for multiplicative phrases FIRST
+                is_multiply = False
+                multiplier = 1
+                for phrase, mult in [
+                    ("twice as many", 2), ("twice as much", 2), ("two times as many", 2),
+                    ("2x as many", 2), ("double the", 2), ("double what", 2),
+                    ("three times as many", 3), ("3x as many", 3), ("triple the", 3), ("thrice", 3),
+                    ("half as many", 0.5), ("half as much", 0.5), ("half the", 0.5),
+                    ("doubles", 2), ("double", 2), ("triples", 3), ("triple", 3),
+                ]:
+                    if phrase in clause:
+                        multiplier = mult
+                        is_multiply = True
+                        break
+                
+                if is_multiply and not nums:
+                    # "twice as many" with no number → multiply previous result
+                    if result is not None:
+                        result = int(result * multiplier)
+                        log.info(f"  🧮 Multiply ×{multiplier}: = {result}")
                     continue
                 
-                nums = [int(x) for x in re.findall(r'\b\d+\b', sentence)]
-                
-                # PRIORITY 1: Multiplicative phrases (twice as many, half as many, etc.)
-                # These may not contain a number in the sentence itself
-                if any(w in sentence for w in [
-                    "twice as many", "double the", "2x as many", "two times as many",
-                    "twice as much", "double what"
-                ]):
-                    ref = result if result is not None else (nums[0] if nums else 0)
-                    result = ref * 2
-                    log.info(f"  🧮 Twice: {ref} × 2 = {result}")
-                    continue
-                elif any(w in sentence for w in [
-                    "three times as many", "triple the", "3x as many", "thrice",
-                    "three times as much"
-                ]):
-                    ref = result if result is not None else (nums[0] if nums else 0)
-                    result = ref * 3
-                    log.info(f"  🧮 Triple: {ref} × 3 = {result}")
-                    continue
-                elif any(w in sentence for w in [
-                    "half as many", "half the", "half as much"
-                ]):
-                    ref = result if result is not None else (nums[0] if nums else 0)
-                    result = ref // 2
-                    log.info(f"  🧮 Half: {ref} ÷ 2 = {result}")
-                    continue
-                
-                # PRIORITY 2: Need at least one number for remaining checks
                 if not nums:
                     continue
                 
                 n = nums[0]
+                second_n = nums[1] if len(nums) > 1 else None
                 
-                # PRIORITY 3: Setting phrases (first subject definition)
-                if any(w in sentence for w in ["begins with", "starts with", "start with"]):
+                if is_multiply:
+                    # "doubles its 4 fish" → 4 × 2 = 8
+                    val = int(n * multiplier)
+                    # If there's a second number with an add keyword, add it
+                    # "doubles its 4 fish and then finds 3 more" — already split by "and then"
+                    if result is None:
+                        result = val
+                    else:
+                        result = int(result * multiplier)
+                    log.info(f"  🧮 Multiply: {n} × {multiplier} = {result}")
+                    # Check if this clause ALSO has an addition/subtraction
+                    if second_n is not None:
+                        if any(w in clause for w in ["more", "finds", "gains", "gets", "adds"]):
+                            result += second_n
+                            log.info(f"  🧮 Then add: +{second_n} = {result}")
+                    continue
+                
+                # Setting phrases
+                if any(w in clause for w in ["begins with", "starts with", "start with"]):
                     result = n
                     log.info(f"  🧮 Starts: = {n}")
-                elif "has " in sentence and result is None:
-                    # "A wizard has 9 books" → first subject, set result
+                elif "has " in clause and result is None:
                     result = n
                     log.info(f"  🧮 Has (first): = {n}")
-                elif any(w in sentence for w in [
+                elif any(w in clause for w in [
                     "loses", "drops", "gives", "spends", "removes", "minus",
                     "fewer", "less", "throws", "eats", "breaks", "dies",
                     "disappears", "lost", "fall", "falls", "subtract", "escape",
@@ -215,7 +224,7 @@ class HansaBot:
                     if result is None: result = n
                     else: result -= n
                     log.info(f"  🧮 Subtract: -{n} = {result}")
-                elif any(w in sentence for w in [
+                elif any(w in clause for w in [
                     "finds", "gains", "gets", "more", "adds", "receives",
                     "collects", "wins", "earns", "picks up", "takes", "buys",
                     "arrive", "arrives", "come", "comes", "join", "joins",
@@ -228,8 +237,6 @@ class HansaBot:
                     if result is None: result = n
                     else: result += n
                     log.info(f"  🧮 Add: +{n} = {result}")
-                # "has" with result already set = new subject (distractor or separate question)
-                # Skip unless it's a comparison like "twice as many" (handled above)
             
             if result is None:
                 result = 0
