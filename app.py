@@ -128,13 +128,12 @@ class HansaBot:
         
         Handles:
         - "begins with/starts with X" → set result = X
+        - "has N [things]" → set result = N (first subject)
         - "finds/gains X more" → add X
         - "loses/drops X" → subtract X
-        - "twice as many" → multiply by 2
-        - "three times as many" → multiply by 3
-        - "half as many" → multiply by 0.5
-        - "double" → multiply by 2
-        - Compound nouns: "A knight has twice as many" (uses the last reference number)
+        - "twice as many" → multiply previous by 2
+        - "three times as many" → multiply previous by 3
+        - "half as many" → multiply previous by 0.5
         """
         try:
             q = question.lower().strip()
@@ -157,8 +156,7 @@ class HansaBot:
             # Split into sentences
             sentences = re.split(r'[.!?]\s*', normalized)
             
-            result = None  # None means not yet set
-            last_reference_num = None  # Track the last number mentioned for "twice as many"
+            result = None
             
             for sentence in sentences:
                 sentence = sentence.strip()
@@ -166,37 +164,47 @@ class HansaBot:
                     continue
                 
                 nums = [int(x) for x in re.findall(r'\b\d+\b', sentence)]
+                
+                # PRIORITY 1: Multiplicative phrases (twice as many, half as many, etc.)
+                # These may not contain a number in the sentence itself
+                if any(w in sentence for w in [
+                    "twice as many", "double the", "2x as many", "two times as many",
+                    "twice as much", "double what"
+                ]):
+                    ref = result if result is not None else (nums[0] if nums else 0)
+                    result = ref * 2
+                    log.info(f"  🧮 Twice: {ref} × 2 = {result}")
+                    continue
+                elif any(w in sentence for w in [
+                    "three times as many", "triple the", "3x as many", "thrice",
+                    "three times as much"
+                ]):
+                    ref = result if result is not None else (nums[0] if nums else 0)
+                    result = ref * 3
+                    log.info(f"  🧮 Triple: {ref} × 3 = {result}")
+                    continue
+                elif any(w in sentence for w in [
+                    "half as many", "half the", "half as much"
+                ]):
+                    ref = result if result is not None else (nums[0] if nums else 0)
+                    result = ref // 2
+                    log.info(f"  🧮 Half: {ref} ÷ 2 = {result}")
+                    continue
+                
+                # PRIORITY 2: Need at least one number for remaining checks
                 if not nums:
                     continue
                 
                 n = nums[0]
-                last_reference_num = n
                 
-                if "begins with" in sentence or "starts with" in sentence or "start with" in sentence or "has " in sentence and result is None:
-                    # "A wizard has 9 books" → starting value = 9
+                # PRIORITY 3: Setting phrases (first subject definition)
+                if any(w in sentence for w in ["begins with", "starts with", "start with"]):
                     result = n
-                elif any(w in sentence for w in [
-                    "twice as many", "double the", "2x as many", "two times as many"
-                ]):
-                    # "A knight has twice as many" → multiply last reference
-                    if result is not None:
-                        result = result * 2
-                    elif last_reference_num is not None:
-                        result = last_reference_num * 2
-                elif any(w in sentence for w in [
-                    "three times as many", "triple the", "3x as many", "thrice"
-                ]):
-                    if result is not None:
-                        result = result * 3
-                    elif last_reference_num is not None:
-                        result = last_reference_num * 3
-                elif any(w in sentence for w in [
-                    "half as many", "half the"
-                ]):
-                    if result is not None:
-                        result = result // 2
-                    elif last_reference_num is not None:
-                        result = last_reference_num // 2
+                    log.info(f"  🧮 Starts: = {n}")
+                elif "has " in sentence and result is None:
+                    # "A wizard has 9 books" → first subject, set result
+                    result = n
+                    log.info(f"  🧮 Has (first): = {n}")
                 elif any(w in sentence for w in [
                     "loses", "drops", "gives", "spends", "removes", "minus",
                     "fewer", "less", "throws", "eats", "breaks", "dies",
@@ -204,10 +212,9 @@ class HansaBot:
                     "escapes", "destroy", "destroys", "break", "vanish", "vanishes",
                     "die", "kill", "kills", "steal", "steals", "sold", "sell"
                 ]):
-                    if result is None:
-                        result = n
-                    else:
-                        result -= n
+                    if result is None: result = n
+                    else: result -= n
+                    log.info(f"  🧮 Subtract: -{n} = {result}")
                 elif any(w in sentence for w in [
                     "finds", "gains", "gets", "more", "adds", "receives",
                     "collects", "wins", "earns", "picks up", "takes", "buys",
@@ -218,14 +225,11 @@ class HansaBot:
                     "create", "creates", "make", "makes", "build", "builds",
                     "find", "found", "bought", "purchase", "purchases"
                 ]):
-                    if result is None:
-                        result = n
-                    else:
-                        result += n
-                # If sentence has "has" and result is already set, it's a new subject
-                # e.g. "A wizard has 9 books. A knight has twice as many."
-                # The "twice as many" is caught above, but plain "has" with result set = new subject
-                # Skip — handled by "twice as many" etc.
+                    if result is None: result = n
+                    else: result += n
+                    log.info(f"  🧮 Add: +{n} = {result}")
+                # "has" with result already set = new subject (distractor or separate question)
+                # Skip unless it's a comparison like "twice as many" (handled above)
             
             if result is None:
                 result = 0
