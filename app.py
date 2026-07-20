@@ -22,7 +22,7 @@ BB_WALLET = os.environ.get("BB_WALLET", "0xA4c60C0BBFDf1AF375d8F5CCb4dE171641c76
 BB_PRIVKEY = os.environ.get("BB_PRIVKEY", "0x24812d36a63bbf980d8b867e27e70bd5d20697f678da4f5badb04a4b2cea1cea")
 TOKU_KEY = os.environ.get("TOKU_KEY", "cmrsgzlqr0004l4044clj6yvy")
 
-STATE_FILE = Path("/tmp/earnbot_state.json")
+STATE_FILE = Path(os.environ.get("STATE_FILE", "/tmp/earnbot_state.json"))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -384,9 +384,21 @@ class BountyBookBot:
         # Sign with ethers.js
         try:
             import subprocess
+            # Try local node_modules first, then GitHub Actions path
+            ethers_path = None
+            for p in ["/home/user/node_modules/ethers", "node_modules/ethers"]:
+                if os.path.exists(p):
+                    ethers_path = p
+                    break
+            if not ethers_path:
+                # Try requiring ethers directly (npm global or node_modules in cwd)
+                ethers_import = 'require("ethers")'
+            else:
+                ethers_import = f'require("{ethers_path}")'
+            
             sig = subprocess.run(
                 ["node", "-e",
-                 f'const {{Wallet}}=require("/home/user/node_modules/ethers");'
+                 f'const {{Wallet}}={ethers_import};'
                  f'const w=new Wallet("{self.privkey}");'
                  f'w.signMessage("{nonce}").then(s=>process.stdout.write(s));'],
                 capture_output=True, text=True, timeout=15
@@ -585,4 +597,43 @@ def main_loop():
 if __name__ == "__main__":
     log.info("🤖 BursaryHunter EarnBot starting...")
     log.info("🎯 Platforms: Agent Hansa, BountyBook, Toku")
-    main_loop()
+    
+    if os.environ.get("SINGLE_CYCLE"):
+        # GitHub Actions mode: run one cycle and exit
+        log.info("⚡ Single-cycle mode (GitHub Actions)")
+        state = load_state()
+        hansa = HansaBot(HANSA_KEY, state)
+        bb = BountyBookBot(BB_WALLET, BB_PRIVKEY, state)
+        toku = TokuBot(TOKU_KEY, state)
+
+        now = datetime.now(timezone.utc)
+        log.info(f"🕐 {now.strftime('%Y-%m-%d %H:%M:%S')} UTC")
+        log.info(f"💰 Total earned so far: ${state.get('total_earned', 0):.2f}")
+        log.info(f"📊 Jobs submitted: {state.get('jobs_submitted', 0)}")
+        log.info(f"🔥 Streak: {state.get('checkin_streak', 0)} | XP: {state.get('xp_balance', 0)}")
+
+        try:
+            hansa.daily_routine()
+        except Exception as e:
+            log.error(f"Hansa error: {e}")
+
+        try:
+            bb.scan_and_claim()
+        except Exception as e:
+            log.error(f"BountyBook error: {e}")
+
+        try:
+            toku.check_jobs()
+        except Exception as e:
+            log.error(f"Toku error: {e}")
+
+        # Reset daily counters at midnight UTC
+        if now.hour == 0 and now.minute < 10:
+            state["forum_posts_today"] = 0
+            save_state(state)
+
+        log.info(f"💰 Session total: ${state.get('total_earned', 0):.2f}")
+        log.info("✅ Cycle complete. Exiting.")
+    else:
+        # Continuous mode (local/Render/Railway)
+        main_loop()
