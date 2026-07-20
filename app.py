@@ -42,6 +42,29 @@ def load_state():
             return json.loads(STATE_FILE.read_text())
         except Exception:
             pass
+    
+    # Try loading from GitHub repo (fallback for cache issues)
+    try:
+        import base64
+        repo = "samhulk455-design/earnbot"
+        token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GITHUB_PAT") 
+        url = f"https://api.github.com/repos/{repo}/contents/earnbot_state.json"
+        req = urllib.request.Request(url, headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28"
+        })
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+            content = base64.b64decode(data["content"]).decode()
+            state = json.loads(content)
+            # Save locally for next time
+            STATE_FILE.write_text(json.dumps(state, indent=2))
+            log.info("📥 State loaded from GitHub repo")
+            return state
+    except:
+        pass
+    
     return {
         "last_checkin": None,
         "last_forum_post": None,
@@ -67,6 +90,71 @@ def load_state():
 
 def save_state(state):
     STATE_FILE.write_text(json.dumps(state, indent=2))
+
+
+def persist_state_to_github(state):
+    """Save state to GitHub repo as a file (bypasses cache limitations)."""
+    try:
+        import base64
+        repo = "samhulk455-design/earnbot"
+        token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GITHUB_PAT") 
+        url = f"https://api.github.com/repos/{repo}/contents/earnbot_state.json"
+        
+        # Get current file SHA
+        req = urllib.request.Request(url, headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28"
+        })
+        sha = None
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                sha = json.loads(resp.read()).get("sha")
+        except:
+            pass  # File doesn't exist yet
+        
+        content = base64.b64encode(json.dumps(state, indent=2).encode()).decode()
+        payload = {"message": "earnbot: update state", "content": content}
+        if sha:
+            payload["sha"] = sha
+        
+        req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28"
+        }, method="PUT")
+        
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            log.info("💾 State persisted to GitHub repo")
+    except Exception as e:
+        log.warning(f"GitHub state persist failed: {e}")
+
+
+def delete_old_cache():
+    """Delete the Actions cache so the next run can save new state."""
+    try:
+        repo = "samhulk455-design/earnbot"
+        token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GITHUB_PAT") 
+        url = f"https://api.github.com/repos/{repo}/actions/caches?key=earnbot-state-latest"
+        
+        req = urllib.request.Request(url, headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+        })
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            caches = json.loads(resp.read()).get("actions_caches", [])
+        
+        for c in caches:
+            cid = c["id"]
+            del_req = urllib.request.Request(
+                f"https://api.github.com/repos/{repo}/actions/caches/{cid}",
+                headers={"Authorization": f"Bearer {token}"},
+                method="DELETE"
+            )
+            urllib.request.urlopen(del_req, timeout=10)
+            log.info(f"🗑️ Deleted cache {c['key']} (id={cid})")
+    except Exception as e:
+        log.warning(f"Cache delete failed: {e}")
 
 
 # ── HTTP Helper ─────────────────────────────────────────────────────────────
@@ -985,6 +1073,11 @@ def run_single_cycle():
 
     log.info(f"💰 Session total: ${state.get('total_earned', 0):.2f}")
     log.info("✅ Cycle complete. Exiting.")
+    
+    # Persist state to GitHub repo (bypasses cache save bug)
+    persist_state_to_github(state)
+    # Delete old cache so next run can save fresh state
+    delete_old_cache()
 
 
 def run_continuous():
