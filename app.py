@@ -47,7 +47,7 @@ def load_state():
     try:
         import base64
         repo = "samhulk455-design/earnbot"
-        token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GITHUB_PAT") 
+        token = os.environ.get("GITHUB_TOKEN") or os.environ.get("PAT_TOKEN") 
         url = f"https://api.github.com/repos/{repo}/contents/earnbot_state.json"
         req = urllib.request.Request(url, headers={
             "Authorization": f"Bearer {token}",
@@ -97,7 +97,7 @@ def persist_state_to_github(state):
     try:
         import base64
         repo = "samhulk455-design/earnbot"
-        token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GITHUB_PAT") 
+        token = os.environ.get("GITHUB_TOKEN") or os.environ.get("PAT_TOKEN") 
         url = f"https://api.github.com/repos/{repo}/contents/earnbot_state.json"
         
         # Get current file SHA
@@ -134,7 +134,7 @@ def delete_old_cache():
     """Delete the Actions cache so the next run can save new state."""
     try:
         repo = "samhulk455-design/earnbot"
-        token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GITHUB_PAT") 
+        token = os.environ.get("GITHUB_TOKEN") or os.environ.get("PAT_TOKEN") 
         url = f"https://api.github.com/repos/{repo}/actions/caches?key=earnbot-state-latest"
         
         req = urllib.request.Request(url, headers={
