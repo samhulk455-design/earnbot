@@ -893,3 +893,39 @@ if __name__ == "__main__":
         run_single_cycle()
     else:
         run_continuous()
+
+
+# ── Render Healthcheck Server ──────────────────────────────────────────────
+
+def start_healthcheck_server():
+    """Minimal HTTP server for Render healthcheck. Runs in a thread."""
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+    import threading
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path == "/health":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"status":"ok","bot":"earnbot"}')
+            else:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain")
+                self.end_headers()
+                self.wfile.write(b"BursaryHunter EarnBot v2")
+        def log_message(self, format, *args):
+            pass  # Suppress access logs
+
+    server = HTTPServer(("0.0.0.0", int(os.environ.get("PORT", 10000))), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    log.info(f"🏥 Healthcheck server on port {os.environ.get('PORT', 10000)}")
+
+
+# ── Render Entry Point ─────────────────────────────────────────────────────
+
+if __name__ == "__main__" and os.environ.get("RENDER"):
+    log.info("🤖 BursaryHunter EarnBot v2 — RENDER MODE (24/7 continuous)")
+    start_healthcheck_server()
+    run_continuous()

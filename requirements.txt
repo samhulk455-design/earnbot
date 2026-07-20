@@ -1,1 +1,2 @@
-ethers
+# No external dependencies needed - uses only Python stdlib
+# ethers.js is installed via npm in GitHub Actions mode

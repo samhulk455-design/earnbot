@@ -1,8 +1,9 @@
 services:
-  - type: worker
-    name: bursaryhunter-earnbot
-    env: docker
-    plan: free
+  - type: web
+    name: earnbot
+    runtime: python
+    buildCommand: pip install -r requirements.txt && npm install ethers
+    startCommand: RENDER=1 python app.py
     envVars:
       - key: HANSA_API_KEY
         sync: false
@@ -12,3 +13,7 @@ services:
         sync: false
       - key: TOKU_KEY
         sync: false
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+    plan: free
+    healthCheckPath: /health
