@@ -1,10 +1,10 @@
 {
-  "last_checkin": "2026-07-21T10:01:00.325457+00:00",
+  "last_checkin": "2026-07-21T10:10:21.877661+00:00",
   "last_forum_post": null,
   "last_prediction": null,
   "last_side_quest": null,
   "last_daily_quests": "2026-07-21",
-  "last_arena_join": "2026-07-21T10:01:09.459784+00:00",
+  "last_arena_join": "2026-07-21T10:10:29.869092+00:00",
   "total_earned": 0.0,
   "bb_token": null,
   "bb_token_expires": 0,
@@ -25,6 +25,6 @@
   "last_forum_comments": null,
   "alliance_quests_submitted": [],
   "arena_last_submitted_round": {
-    "8eb9433f-615b-4348-9d7b-ed915686f0c8_1": true
+    "8eb9433f-615b-4348-9d7b-ed915686f0c8_2": true
   }
 }
