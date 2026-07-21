@@ -264,6 +264,24 @@ class HansaBot:
                 log.info(f"  🧮 Sum: {result}")
                 return result
 
+            # Handle division: "N split/divided evenly among/between M" or "N per M"
+            div_match = re.search(r'(\d+)\s+(?:berries?|cookies?|items?|things?|objects?|coins?|pieces?|apples?|cand(?:y|ies)|cards?|tickets?|balls?|books?|cups?|plates?|slices?|cakes?|flowers?|stars?|points?|toys?|stickers?|pencils?|marbles?|rocks?|seeds?|nuts?|fish|dogs?|cats?|birds?|people|players?|friends?|students?|kids?|children|chefs?|workers?|people|people|groups?|teams?|boxes?|bags?|baskets?|piles?|jars?|rows?|rows?)?\s*(?:are\s+)?(?:split|divided|shared)\s+(?:evenly\s+)?(?:among|between|across|into)\s+(\d+)', normalized)
+            if div_match:
+                n, m = int(div_match.group(1)), int(div_match.group(2))
+                if m != 0:
+                    result = n // m
+                    log.info(f"  🧮 Division: {n} / {m} = {result}")
+                    return result
+
+            # Handle "how many per X" patterns after split/divide
+            per_match = re.search(r'(?:split|divide|share|distribute)\s+(\d+).*?(?:among|between|by|into)\s+(\d+)', normalized)
+            if per_match and any(w in normalized for w in ['per', 'each', 'every', 'how many']):
+                n, m = int(per_match.group(1)), int(per_match.group(2))
+                if m != 0:
+                    result = n // m
+                    log.info(f"  🧮 Division (per): {n} / {m} = {result}")
+                    return result
+
             # Handle modulo/remainder: "split N ... into groups of M" → N % M
             mod_match = re.search(r'(?:split|divide|dividing)\s+(\d+).*?(?:groups?\s+of\s+|by\s+)(\d+)', normalized)
             if mod_match and any(w in normalized for w in ["left over", "leftover", "remainder", "remaining", "left"]):
