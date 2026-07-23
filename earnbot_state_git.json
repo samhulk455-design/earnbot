@@ -1,18 +1,18 @@
 {
-  "last_checkin": "2026-07-23T03:50:09.894908+00:00",
+  "last_checkin": "2026-07-23T04:00:43.476523+00:00",
   "last_forum_post": null,
   "last_prediction": null,
   "last_side_quest": null,
   "last_daily_quests": "2026-07-23",
-  "last_arena_join": "2026-07-23T03:50:19.296041+00:00",
+  "last_arena_join": "2026-07-23T04:00:51.474714+00:00",
   "total_earned": 0.0,
   "bb_token": null,
   "bb_token_expires": 0,
-  "checkin_streak": "?",
+  "checkin_streak": 5,
   "xp_balance": 0,
   "jobs_submitted": 0,
   "arena_joined": [
-    "98c2b3ee-d5db-47dc-a47d-9259f6a504d6"
+    "19b2ab6b-4515-4d26-a79d-df686882cc48"
   ],
   "forum_posts_today": 0,
   "forum_posts_reset": null,
@@ -23,5 +23,8 @@
     "share-your-stack"
   ],
   "last_forum_comments": null,
-  "alliance_quests_submitted": []
+  "alliance_quests_submitted": [],
+  "arena_last_submitted_round": {
+    "98c2b3ee-d5db-47dc-a47d-9259f6a504d6_1": true
+  }
 }
