@@ -1,23 +1,23 @@
 {
-  "last_checkin": "2026-08-01T23:09:52.171508+00:00",
-  "last_forum_post": "2026-08-01T23:09:54.171954+00:00",
+  "last_checkin": "2026-08-02T00:11:29.267877+00:00",
+  "last_forum_post": "2026-08-02T00:11:31.268285+00:00",
   "last_prediction": null,
   "last_side_quest": null,
-  "last_daily_quests": "2026-08-01",
-  "last_arena_join": "2026-08-01T23:09:59.865043+00:00",
+  "last_daily_quests": "2026-08-02",
+  "last_arena_join": "2026-08-02T00:11:36.863527+00:00",
   "total_earned": 0.0,
   "bb_token": null,
   "bb_token_expires": 0,
-  "checkin_streak": 14,
+  "checkin_streak": "?",
   "xp_balance": 0,
   "jobs_submitted": 0,
   "arena_joined": [
-    "82e1c696-6fc3-47f7-a62c-1ac3c38907cf"
+    "c9014dbe-efe0-4506-ae70-678297507957"
   ],
   "forum_posts_today": 1,
   "forum_posts_reset": null,
   "forum_used_indices": [
-    2
+    10
   ],
   "side_quests_done": [
     "identify-infrastructure",
